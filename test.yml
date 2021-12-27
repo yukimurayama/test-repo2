@@ -1,0 +1,189 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Launch test enviorment template.
+
+##----------------------------------------------------
+## Metadata
+##----------------------------------------------------
+Metadata:
+  AWS::CloudFormation::Interface:
+  ##----------------------------------------------------
+  ## ParameterGroup
+  ##----------------------------------------------------
+    ParameterGroups:
+      - Label:
+          default: EC2 Configuration
+        Parameters:
+          - ImageId
+          - InstanceType
+          - DiskSize
+          - KeyName
+          - Subnet
+      - Label:
+          default: TEST 
+        Paramerters:
+          - test
+
+##----------------------------------------------------
+## Parameters
+##----------------------------------------------------
+Parameters:
+  ImageId:
+    Type: String
+    Description: Enter AMI ID.
+    Default: ami-0427ff21031d224a8
+  InstanceType:
+    Type: String
+    Description: Enter Instance ID.
+    Default: t2.micro
+  DiskSize:
+    Type: Number
+    Description: Enter Disk Size.
+    Default: 20
+  KeyName:
+    Type: String
+    Description: Enter your Key.
+#  Subnet:
+#    Type: string
+#    Description: Choose Subnet.
+#    AllowedPattern: 
+#      - 
+#      - 
+  Test:
+    Type: String
+    Description: for enviorment
+    Default: test
+
+##----------------------------------------------------
+## Resources
+##----------------------------------------------------
+Resources:
+  ##----------------------------------------------------
+  ## Create VPC
+  ##----------------------------------------------------
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 192.168.0.0/24
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: !Sub vpc-${Test}
+
+  ##----------------------------------------------------
+  ## Create Internet Gateway
+  ##----------------------------------------------------
+  IGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub igw-${Test}
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref IGW
+
+  ##----------------------------------------------------
+  ## Create Subnet
+  ##----------------------------------------------------
+  SubnetPublicA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: ap-northeast-1a
+      CidrBlock: 192.168.0.0/26
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub pubA-${Test}
+  SubnetPublicC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: ap-northeast-1c
+      CidrBlock: 192.168.0.64/26
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub pubC-${Test}
+  SubnetPrivateA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: ap-northeast-1a
+      CidrBlock: 192.168.0.128/26
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub priA-${Test}
+  SubnetPrivateC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: ap-northeast-1c
+      CidrBlock: 192.168.0.192/26
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub priC-${Test}
+
+  ##----------------------------------------------------
+  ## Create Route Table
+  ##----------------------------------------------------
+  # Create Route table
+  RouteGlobal:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub rtb-pub-${Test}
+  RouteInternal:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub rtb-pri-${Test}
+  # Add Route to Route Table
+  RoutingGlobal:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref IGW
+      RouteTableId: !Ref RouteGlobal
+  # Assign Route Tables to Subnets
+  AssignPublicA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPublicA
+      RouteTableId: !Ref RouteGlobal
+  AssignPublicC:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPublicC
+      RouteTableId: !Ref RouteGlobal
+  AssignPrivateA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPrivateA
+      RouteTableId: !Ref RouteInternal
+  AssignPrivateC:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPrivateC
+      RouteTableId: !Ref RouteInternal
+
+##----------------------------------------------------
+## Outputs
+##----------------------------------------------------
+Outputs:
+  OutVPC:
+    Description: the ID of the VPC.
+    Value: !Ref VPC
+    Export:
+      Name: !Sub vpc-${Test}
